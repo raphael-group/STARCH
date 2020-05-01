@@ -2,7 +2,7 @@
 Spatial Transcriptomics Inference of Tumor Copy-number Heterogeneity
 
 ## Required Python Libraries
-Numpy, Pandas, Scipy, SKlearn, HMMlearn
+Numpy, Pandas, Scipy, SKlearn, multiprocessing, HMMlearn
 
 ## Required input
 1. Gene x Spot STRNA-seq expression matrix. This can be a text file (.csv, .tsv, .txt) where the first column is contains the gene names in HUGO format and the first row contains the spot coordinates in the format '1x2'. STITCH can also read in the output from 10Xs Space Ranger pipeline. In this case, the input is the directory containing the following files: barcodes.tsv, features.tsv, matrix.mtx, and tissue_positions_list.csv
