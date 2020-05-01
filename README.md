@@ -11,4 +11,4 @@ Numpy, Pandas, Scipy, SKlearn, HMMlearn
 
 ## Running from Command Line
 
-python run_STITCH.py -i <gene_expression_matrix.csv (or 10X_directory/)> -o <name> --n_clusters 3 --outdir <output directory>
+python run_STITCH.py -i gene_expression_matrix.csv (or 10X_directory/) -o name --n_clusters 3 --outdir output/directory/
