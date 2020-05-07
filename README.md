@@ -15,4 +15,4 @@ python run_STITCH.py -i gene_expression_matrix.csv (or 10X_directory/) --output 
 
 ## Output
 
-run_STITCH.py will output two files (1) the gene x clone CNV matrix which is saved to <outdir>/states_<output>.csv. (2) a spot label vector which assigns each spot to one of n_clusters clones which is saved to <outdir>/labels_<output>.csv.
+run_STITCH.py will output two files (1) the gene x clone CNV matrix which is saved to outdir/states_output.csv. (2) a spot label vector which assigns each spot to one of n_clusters clones which is saved to outdir/labels_output.csv.
