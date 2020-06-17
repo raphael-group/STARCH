@@ -8,9 +8,7 @@ import math
 import copy
 import sklearn
 import sklearn.cluster
-import maxflow as mf
 import random
-import gco
 from sklearn.cluster import KMeans
 from sklearn.mixture import GaussianMixture
 from sklearn.metrics import silhouette_score, davies_bouldin_score,v_measure_score
@@ -29,8 +27,20 @@ from scipy.stats import ks_2samp
 from hmmlearn import hmm
 from scipy.io import mmread
 from scipy.sparse import csr_matrix
+import multiprocessing
+import warnings
 os.environ['NUMEXPR_MAX_THREADS'] = '50'
 
+
+def jointLikelihoodEnergyLabels_helper(label,data,states,norms):
+	e = 1e-50
+	r0 = [x for x in range(data.shape[0]) if states[x,label]==0]
+	l0 = np.sum(-np.log(np.asarray(norms[0].pdf(data[r0,:])+e)),axis=0) 
+	r1 = [x for x in range(data.shape[0]) if states[x,label]==1]
+	l1 = np.sum(-np.log(np.asarray(norms[1].pdf(data[r1,:])+e)),axis=0) 
+	r2 = [x for x in range(data.shape[0]) if states[x,label]==2]
+	l2 = np.sum(-np.log(np.asarray(norms[2].pdf(data[r2,:])+e)),axis=0) 
+	return l0 + l1 + l2
 
 def init_helper(i,data, n_clusters,normal,diff,labels,c):
 	l = []
@@ -48,16 +58,20 @@ def init_helper(i,data, n_clusters,normal,diff,labels,c):
 def HMM_helper(inds, data, means, sigmas ,t, num_states, model,normal):
 	ind_bin,ind_spot,k = inds
 	data = data[np.asarray(ind_bin)[:, None],np.asarray(ind_spot)]
-
 	data2 = np.mean(data,axis=1)
 	X = np.asarray([[x] for x in data2])
 	C = np.asarray(model.predict(X))
 	score = model.score(X)
-	for i in range(data.shape[0]):
-		if C[i] != 1:
-			pval = ks_2samp(data[i,:],normal[i,:])[1]
-			if pval >= 1e-2:
-				C[i] = 1
+	#bootstrap
+	b=3
+	for i in range(b):
+		inds = random.sample(range(data.shape[1]),int(data.shape[1]*.8+1))
+		data2 = np.mean(data[:,inds],axis=1)
+		X = np.asarray([[x] for x in data2])
+		C2 = np.asarray(model.predict(X))
+		for j,c in enumerate(C2):
+			if C[j] != c:
+				C[j] = 1
 	return [C,score]
 
 class STITCH:
@@ -66,7 +80,7 @@ class STITCH:
 	using spatial relationships and gene adjacencies along chromosomes
 	"""
 
-	def __init__(self,data,normal_spots=[],labels=[],beta_spots=2,n_clusters=3,num_states=3,gene_mapping_file_name='/n/fs/ragr-research/projects/spatial_transcriptomics/data/hgTables.txt',nthreads=1):
+	def __init__(self,data,normal_spots=[],labels=[],beta_spots=2,n_clusters=3,num_states=3,gene_mapping_file_name='hgTables_hg19.txt',nthreads=0):
 		"""
 		The constructor for HMFR_CNA
 
@@ -75,11 +89,15 @@ class STITCH:
 				colnames = 2d or 3d indices (eg. 5x18, 5x18x2 if multiple layers). 
 				rownames = HUGO gene name
 		"""
+		if nthreads == 0:
+			nthreads = int(multiprocessing.cpu_count() / 2 + 1)
+			logger.info('Running with ' + str(nthreads) + ' threads')
 		logger.info("initializing HMRF...")
 		self.beta_spots = beta_spots
 		self.gene_mapping_file_name = gene_mapping_file_name
 		self.n_clusters = int(n_clusters)
-		dat,data = self.load(data)
+		dat,data = self.preload(data)
+		logger.info(str(self.rows[0:20]))
 		logger.info(str(len(self.rows)) + ' ' + str(len(self.columns)) + ' ' + str(data.shape))
 		if isinstance(normal_spots, str):
 			self.read_normal_spots(normal_spots)
@@ -113,7 +131,7 @@ class STITCH:
 		logger.debug('starting labels: '+str(self.labels))
 		np.fill_diagonal(self.spot_network, 0)
 		logger.info('getting params...')
-		for d in range(12,20,1):
+		for d in range(10 ,20,1):
 			try:
 				self.init_params(d/10,nthreads)
 				break
@@ -152,6 +170,55 @@ class STITCH:
 				break
 		logger.info('selected bin size: ' + str(bin_size))
 		return bin_size
+
+	def preload(self,l):
+		if isinstance(l,list): # list of multiple datasets
+			offset = 0
+			dats = []
+			datas = []
+			for data in l:
+				dat,data = self.load(data)
+				datas.append(data)
+				dats.append(dat)
+			conserved_genes = []
+			inds = []
+			for dat in dats:
+				inds.append([])
+			for gene in dats[0].index.values:
+				inall = True
+				for dat in dats:
+					if gene not in dat.index.values:
+						inall = False
+				if inall:
+					conserved_genes.append(gene)
+					for i,dat in enumerate(dats):
+						ind = inds[i]
+						ind.append(np.where(dat.index.values == gene)[0][0])
+						inds[i] = ind
+			conserved_genes = np.asarray(conserved_genes)
+			logger.info(str(conserved_genes))
+			newdatas = []
+			newdats = []
+			for i in range(len(datas)):
+				data = datas[i]
+				dat = dats[i]
+				ind = np.asarray(inds[i])
+				newdatas.append(data[ind,:])
+				newdats.append(dat.iloc[ind,:])
+			for dat in newdats:
+				spots = np.asarray([[float(y) for y in x.split('x')] for x in dat.columns.values])
+				for spot in spots:
+					spot[0] += offset
+				spots = ['x'.join([str(y) for y in x]) for x in spots]
+				dat.columns = spots
+				offset += 100
+			data = np.concatenate(newdatas,axis=1)
+			dat = pd.concat(newdats,axis=1)
+			self.rows = dat.index.values
+			self.columns = dat.columns.values
+		else:
+			dat,data = self.load(l)
+		return dat,data
 
 	def load(self,data):
 		try:
@@ -239,7 +306,7 @@ class STITCH:
 		self.normal_spots = np.asarray([int(x) or x in np.asarray(normal_spots)])
 
 	def get_normal_spots(self,data):
-		data,k = self.filter_genes(data,min_cells=int(data.shape[1]/15)) # 1
+		data,k = self.filter_genes(data,min_cells=int(data.shape[1]/20)) # 1
 		data = self.library_size_normalize(data) #2
 		data = np.log(data+1) 
 		data = self.threshold_data(data,max_value=3.0)
@@ -303,7 +370,7 @@ class STITCH:
 				r = np.asarray([x for x in range(start,end)])
 				weighting = np.asarray([x+1 for x in range(start,end)])
 				weighting = abs(weighting - len(weighting)/2)
-				weighting = 1/(weighting+10)
+				weighting = 1/(weighting+1)
 				weighting = weighting / sum(weighting) #pyramidinal weighting
 				weighting = weighting.reshape(len(r),1)
 				mean = np.sum(data2[r,:]*weighting,axis=0)
@@ -367,12 +434,12 @@ class STITCH:
 		for i in range(len(results)):
 			labels[i,:] = results[i]
 		labels = labels.astype(int)
-		logger.info(str(labels))
-		means = [np.mean(c[labels==cluster]) for cluster in range(self.num_states)]
-		sigmas = [np.std(c[labels==cluster]) for cluster in range(self.num_states)]
-		logger.info(str(means))
-		indices = np.argsort([x for x in means])
-		states = copy.deepcopy(labels)
+		with warnings.catch_warnings():
+			warnings.simplefilter("ignore", category=RuntimeWarning)
+			means = [np.mean(c[labels==cluster]) for cluster in range(self.num_states)]
+			sigmas = [np.std(c[labels==cluster]) for cluster in range(self.num_states)]
+			indices = np.argsort([x for x in means])
+			states = copy.deepcopy(labels)
 		m = np.zeros((3,1))
 		s = np.zeros((3,1))
 		i=0
@@ -380,7 +447,7 @@ class STITCH:
 			states[labels==index]=i # set states
 			mean = means[index]
 			sigma = sigmas[index]
-			if np.isnan(mean):
+			if np.isnan(mean) or np.isnan(sigma) or sigma < .01:
 				raise ValueError()
 			m[i] = [mean]
 			s[i] = [sigma**2]
@@ -404,6 +471,7 @@ class STITCH:
 
 	def initialize_labels(self):
 		dat=self.data
+
 		km = KMeans(n_clusters=self.n_clusters).fit(dat.T)
 		clusters = np.asarray(km.predict(dat.T))
 		self.labels = clusters
@@ -475,28 +543,33 @@ class STITCH:
 		return score
 
 
-	def jointLikelihoodEnergyLabels(self,norms):
-		e = 1e-50
+	def jointLikelihoodEnergyLabels(self,norms,pool):
 		Z = (2*math.pi)**(self.num_states/2)
 		n_clusters = self.n_clusters
 		likelihoods = np.zeros((self.data.shape[1],n_clusters))
-
+		results = pool.map(partial(jointLikelihoodEnergyLabels_helper, data=self.data, states=self.states,norms=norms), range(n_clusters))
 		for label in range(n_clusters):
-			r0 = [x for x in range(self.data.shape[0]) if self.states[x,label]==0]
-			l0 = np.sum(-np.log(np.asarray(norms[0].pdf(self.data[r0,:])+e)),axis=0) 
-			r1 = [x for x in range(self.data.shape[0]) if self.states[x,label]==1]
-			l1 = np.sum(-np.log(np.asarray(norms[1].pdf(self.data[r1,:])+e)),axis=0) 
-			r2 = [x for x in range(self.data.shape[0]) if self.states[x,label]==2]
-			l2 = np.sum(-np.log(np.asarray(norms[2].pdf(self.data[r2,:])+e)),axis=0) 
-			likelihoods[:,label] += l0
-			likelihoods[:,label] += l1
-			likelihoods[:,label] += l2
+			likelihoods[:,label] += results[label]
 		likelihoods = likelihoods / self.data.shape[0]
 		likelihood_energies = likelihoods
 		return(likelihood_energies)
 
+	def jointLikelihoodEnergyLabelsapprox(self,means):
+		e = 1e-20
+		n_clusters = self.n_clusters
+		likelihoods = np.zeros((self.data.shape[1],n_clusters))
+		for spot in range(self.spots):
+			ml=np.inf
+			for label in range(n_clusters):
+				likelihood = np.sum(abs(self.data[:,spot]-means[:,label]))/self.data.shape[0]
+				if likelihood < ml:
+					ml = likelihood
+				likelihoods[spot,label] = likelihood
+			likelihoods[spot,:]-=ml
+		likelihood_energies = likelihoods
+		return(likelihood_energies)
 
-	def MAP_estimate_labels(self,beta_spots,maxiters=20):
+	def MAP_estimate_labels(self,beta_spots,nthreads,maxiters=20):
 		inds_spot = []
 		tmp_spot = []
 		n_clusters = self.n_clusters
@@ -505,13 +578,15 @@ class STITCH:
 			inds_spot.append(np.where(self.spot_network[j,:] >= .25)[0])
 			tmp_spot.append(self.spot_network[j,inds_spot[j]])
 		logger.debug(str(tmp_spot))
+		pool = mp.Pool(nthreads)
 		norms = [norm(self.means[0][0],np.sqrt(self.sigmas[0][0])),norm(self.means[1][0],np.sqrt(self.sigmas[1][0])),norm(self.means[2][0],np.sqrt(self.sigmas[2][0]))]
 		for m in range(maxiters):
 			posteriors = 0
 			means = np.zeros((self.bins,n_clusters))
 			for label in range(n_clusters):
 				means[:,label] = np.asarray([self.means[int(i)][0] for i in self.states[:,label]])
-			likelihood_energies = self.jointLikelihoodEnergyLabels(norms)
+			likelihood_energies = self.jointLikelihoodEnergyLabels(norms,pool)
+			#likelihood_energies = self.jointLikelihoodEnergyLabelsapprox(means)
 			for j in range(self.spots):
 				p = [((np.sum(tmp_spot[j][self.labels[inds_spot[j]] != label]))) for label in range(n_clusters)]
 				val = [likelihood_energies[j,label]+beta_spots*1*p[label] for label in range(n_clusters)]
@@ -549,7 +624,7 @@ class STITCH:
 		logger.debug(str(self.means))
 		logger.debug(str(self.sigmas))
 
-	def callCNA(self,t=1e-5,beta_spots=2,maxiters=20,deltoamp=0.0,nthreads=1,returnnormal=True):
+	def callCNA(self,t=.00001,beta_spots=2,maxiters=20,deltoamp=0.0,nthreads=0,returnnormal=True):
 		"""
 		Run HMRF-EM framework to call CNA states by alternating between
 		MAP estimate of states given current params and EM estimate of
@@ -562,18 +637,23 @@ class STITCH:
 		states = [copy.deepcopy(self.states),copy.deepcopy(self.states)]
 		logger.debug('sum start:'+str(np.sum(states[-1])))
 		logger.info('beta spots: '+str(beta_spots))
+		if nthreads == 0:
+			nthreads = int(multiprocessing.cpu_count() / 2 + 1)
+			logger.info('Running with ' + str(nthreads) + ' threads')
 		X = []
+		lengths = []
 		for i in range(self.data.shape[1]):
 			X.append([[x] for x in self.data[:,i]])
+			lengths.append(len(self.data[:,i]))
 		X = np.concatenate(X)
-		model = hmm.GaussianHMM(n_components=self.num_states, covariance_type="diag",init_params="", params="")
+		model = hmm.GaussianHMM(n_components=self.num_states, covariance_type="diag",init_params="mc", params="",algorithm='viterbi')
 		model.transmat_ = np.array([[1-2*t, t, t],
 									[t, 1-2*t, t],
 									[t, t, 1-2*t]])
 		model.startprob_ = np.asarray([.1,.8,.1])
 		model.means_ = self.means
 		model.covars_ = self.sigmas
-		model.fit(X)
+		model.fit(X,lengths)
 		logger.info(str(model.means_))
 		logger.info(str(model.covars_))
 		logger.info(str(model.transmat_))
@@ -581,8 +661,8 @@ class STITCH:
 		self.model = model
 		for i in range(maxiters):
 			score_state = self.HMM_estimate_states_parallel(t=t,deltoamp=deltoamp,nthreads=nthreads)
-			score_label = self.MAP_estimate_labels(beta_spots=beta_spots,maxiters=20)
 			self.init_params2()
+			score_label = self.MAP_estimate_labels(beta_spots=beta_spots,nthreads=nthreads,maxiters=20)
 			states.append(copy.deepcopy(self.states))
 			logger.debug('sum iter:'+str(i) + ' ' + str(np.sum(states[-1])))
 			if np.array_equal(states[-2],states[-1]) or np.array_equal(states[-3],states[-1]): # check for convergence
@@ -604,7 +684,6 @@ class STITCH:
 			self.labels = pd.DataFrame(data=self.labels,index=self.columns[self.tumor_spots])
 		states = pd.DataFrame(self.states)
 		logger.info(str(len(self.rows)) + ' ' + str(len(np.asarray([i for i in range(self.states.shape[1])]))) + ' ' + str(self.states.shape))
-		#self.states = np.asarray(states.loc[:,~states.columns.duplicated()])
 		self.states = pd.DataFrame(self.states, index=self.rows,columns=np.asarray([i for i in range(self.states.shape[1])]))
 		logger.debug(str(self.states))
 		logger.debug(str(self.labels))
