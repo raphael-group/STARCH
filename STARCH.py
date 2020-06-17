@@ -74,7 +74,7 @@ def HMM_helper(inds, data, means, sigmas ,t, num_states, model,normal):
 				C[j] = 1
 	return [C,score]
 
-class STITCH:
+class STARCH:
 	"""
 	This is a class for Hidden Markov Random Field for calling Copy Number Aberrations
 	using spatial relationships and gene adjacencies along chromosomes
