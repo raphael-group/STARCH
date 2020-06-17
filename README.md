@@ -1,5 +1,5 @@
-# STITCH
-Spatial Transcriptomics Inference of Tumor Copy-number Heterogeneity
+# STARCH
+Spatial Transcriptomics Algorithm Reconstructing Copy-number Heterogeneity
 
 ## Required Python Libraries
 Numpy, Pandas, Scipy, SKlearn, multiprocessing, HMMlearn
