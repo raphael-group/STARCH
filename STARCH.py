@@ -131,12 +131,15 @@ class STARCH:
 		logger.debug('starting labels: '+str(self.labels))
 		np.fill_diagonal(self.spot_network, 0)
 		logger.info('getting params...')
+		count_valueerror = 0
 		for d in range(10 ,20,1):
 			try:
 				self.init_params(d/10,nthreads)
 				break
-			except:
+			except ValueError:
+				count_valueerror += 1
 				continue
+		logger.info('Count of ValueError in init_params is {}'.format(count_valueerror))
 		self.states = np.zeros((self.bins,self.n_clusters))
 		logger.info('starting means: '+str(self.means))
 		logger.info('starting cov: '+str(self.sigmas))
