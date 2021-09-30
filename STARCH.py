@@ -429,7 +429,7 @@ class STARCH:
 		diff = np.mean(diffs)
 		logger.info(str(diff))
 
-		pool = mp.Pool(nthreads)
+		pool = mp.get_context('fork').Pool(nthreads)
 		results = pool.map(partial(init_helper, data=self.data, n_clusters=self.n_clusters,normal=self.normal,diff=diff,labels=self.labels,c=c), [x for x in range(self.data.shape[0])])
 		for i in range(len(results)):
 			labels[i,:] = results[i]
@@ -534,7 +534,7 @@ class STARCH:
 		for chrom in set(chromosomes):
 			for k in range(self.n_clusters):
 				inds.append([np.asarray([i for i in range(len(chromosomes)) if chromosomes[i] == chrom]),np.asarray([i for i in range(len(self.labels)) if self.labels[i]==k]),k])
-		pool = mp.Pool(nthreads)
+		pool = mp.get_context('fork').Pool(nthreads)
 		results = pool.map(partial(HMM_helper, data=self.data, means = self.means, sigmas = self.sigmas,t = self.t,num_states = self.num_states,model=self.model,normal=self.normal), inds)
 		score = 0
 		for i in range(len(results)):
@@ -578,7 +578,7 @@ class STARCH:
 			inds_spot.append(np.where(self.spot_network[j,:] >= .25)[0])
 			tmp_spot.append(self.spot_network[j,inds_spot[j]])
 		logger.debug(str(tmp_spot))
-		pool = mp.Pool(nthreads)
+		pool = mp.get_context('fork').Pool(nthreads)
 		norms = [norm(self.means[0][0],np.sqrt(self.sigmas[0][0])),norm(self.means[1][0],np.sqrt(self.sigmas[1][0])),norm(self.means[2][0],np.sqrt(self.sigmas[2][0]))]
 		for m in range(maxiters):
 			posteriors = 0
