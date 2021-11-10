@@ -29,6 +29,7 @@ from scipy.io import mmread
 from scipy.sparse import csr_matrix
 import multiprocessing
 import warnings
+from pathlib import Path
 os.environ['NUMEXPR_MAX_THREADS'] = '50'
 
 
@@ -80,7 +81,7 @@ class STARCH:
 	using spatial relationships and gene adjacencies along chromosomes
 	"""
 
-	def __init__(self,data,normal_spots=[],labels=[],beta_spots=2,n_clusters=3,num_states=3,gene_mapping_file_name='hgTables_hg19.txt',nthreads=0):
+	def __init__(self,data,normal_spots=[],labels=[],beta_spots=2,n_clusters=3,num_states=3,gene_mapping_file_name='hgTables_hg19.txt',nthreads=0,platform="ST"):
 		"""
 		The constructor for HMFR_CNA
 
@@ -89,6 +90,9 @@ class STARCH:
 				colnames = 2d or 3d indices (eg. 5x18, 5x18x2 if multiple layers). 
 				rownames = HUGO gene name
 		"""
+		assert( platform == "ST" or platform == "Visium" )
+		self.platform = platform
+		logger.info("platform is {}".format(self.platform))
 		if nthreads == 0:
 			nthreads = int(multiprocessing.cpu_count() / 2 + 1)
 			logger.info('Running with ' + str(nthreads) + ' threads')
@@ -234,10 +238,25 @@ class STARCH:
 					dat = pd.read_csv(data,sep=sep,header=0,index_col=0)
 			elif isinstance(data,str):
 				logger.info('Importing 10X data from directory. Directory must contain barcodes.tsv, features.tsv, matrix.mtx, tissue_positions_list.csv')
-				barcodes = np.asarray(pd.read_csv(data + '/barcodes.tsv',header=None)).flatten()
-				genes = np.asarray(pd.read_csv(data + '/features.tsv',sep='\t',header=None))
+				# find the barcodes file from 10X directory
+				file_barcodes = [str(x) for x in Path(data).rglob("*barcodes.tsv*")]
+				if len(file_barcodes) == 0:
+					logger.error('There is no barcode.tsv file in the 10X directory.')
+				file_barcodes = file_barcodes[0]
+				barcodes = np.asarray(pd.read_csv(file_barcodes,header=None)).flatten()
+				# find the features file from 10X directory
+				file_features = [str(x) for x in Path(data).rglob("*features.tsv*")]
+				if len(file_features) == 0:
+					logger.error('There is no features.tsv file in the 10X directory.')
+				file_features = file_features[0]
+				genes = np.asarray(pd.read_csv(file_features,sep='\t',header=None))
 				genes = genes[:,1]
-				coords = np.asarray(pd.read_csv(data + '/tissue_positions_list.csv',sep=',',header=None))
+				# find the tissue_position_list file from 10X directory
+				file_coords = [str(x) for x in Path(data).rglob("*tissue_positions_list.csv*")]
+				if len(file_coords) == 0:
+					logger.error('There is no tissue_positions_list.csv file in the 10X directory.')
+				file_coords = file_coords[0]
+				coords = np.asarray(pd.read_csv(file_coords,sep=',',header=None))
 				d = dict()
 				for row in coords:
 					d[row[0]] = str(row[2]) + 'x' + str(row[3])
@@ -247,7 +266,12 @@ class STARCH:
 					if barcode in d.keys():
 						inds.append(i)
 						coords2.append(d[barcode])
-				matrix = mmread(data + '/matrix.mtx').toarray()
+				# find the count matrix file
+				file_matrix = [str(x) for x in Path(data).rglob("*matrix.mtx*")]
+				if len(file_matrix) == 0:
+					logger.error('There is no matrix.mtx file in the 10X directory.')
+				file_matrix = file_matrix[0]
+				matrix = mmread(file_matrix).toarray()
 				logger.info(str(barcodes) + ' ' + str(barcodes.shape))
 				logger.info(str(genes) + ' ' + str(genes.shape))
 				logger.info(str(coords) + ' ' + str(coords.shape))
@@ -481,6 +505,13 @@ class STARCH:
 		
 	def get_spot_network(self,data,spots,l=1):
 		spots = np.asarray([[float(y) for y in x.split('x')] for x in spots])
+		if self.platform == "Visium":
+			logger.info("Using Visium platform layout.")
+			# scale row and col coordinate to make them a regular hexagon with the adjacent hexagon center distance = 1
+			scale_row = np.sqrt(3) / 2
+			scale_col = 1.0 / 2
+			spots[:,0] = spots[:,0] * scale_row
+			spots[:,1] = spots[:,1] * scale_col
 		spot_network = np.zeros((len(spots),len(spots)))
 		for i in range(len(spots)):
 			for j in range(i,len(spots)):

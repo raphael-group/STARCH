@@ -16,6 +16,7 @@ if __name__ == "__main__":
 	parser.add_argument('-o','--output',required=False,type=str,default='STITCH_output',help='output name (ex. prostate1)') 
 	parser.add_argument('-outdir','--outdir',required=False,type=str,default='.',help='output directory') 
 	parser.add_argument('-m','--gene_mapping_file_name',required=False,type=str,default='hgTables_hg19.txt',help='gene mapping file name') 
+	parser.add_argument('-p','--platform',required=False,type=str,choices=["ST", "Visium"],default='ST',help='platform for spatial transcriptomcis data') 
 	args = parser.parse_args()
 
 	nthreads = args.threads
@@ -33,7 +34,7 @@ if __name__ == "__main__":
 	else:
 		normal_spots = []
 
-	operator = STARCH(i,n_clusters=n_clusters,num_states=3,normal_spots=normal_spots,beta_spots = beta_spot,nthreads=nthreads,gene_mapping_file_name=gene_mapping_file_name)
+	operator = STARCH(i,n_clusters=n_clusters,num_states=3,normal_spots=normal_spots,beta_spots = beta_spot,nthreads=nthreads,gene_mapping_file_name=gene_mapping_file_name, platform=args.platform)
 	posteriors = operator.callCNA(beta_spots=beta_spot,nthreads=nthreads,returnnormal=returnnormal)
 
 	pd.DataFrame(operator.states).to_csv('%s/states_%s.csv'%(outdir,out),sep=',')
