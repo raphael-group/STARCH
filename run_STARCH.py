@@ -37,5 +37,10 @@ if __name__ == "__main__":
 	operator = STARCH(i,n_clusters=n_clusters,num_states=3,normal_spots=normal_spots,beta_spots = beta_spot,nthreads=nthreads,gene_mapping_file_name=gene_mapping_file_name, platform=args.platform)
 	posteriors = operator.callCNA(beta_spots=beta_spot,nthreads=nthreads,returnnormal=returnnormal)
 
+	new_states = np.array(operator.states).astype(int)
+	index = np.argsort(operator.means.flatten())
+	map_states = {index[i]:i for i in range(len(index))}
+	new_states = np.array([ [map_states[x] for x in y] for y in new_states])
+	logger.info("{}, {}".format(new_states.shape, operator.states.shape) )
 	pd.DataFrame(operator.states).to_csv('%s/states_%s.csv'%(outdir,out),sep=',')
 	pd.DataFrame(operator.labels).to_csv('%s/labels_%s.csv'%(outdir,out),sep=',')

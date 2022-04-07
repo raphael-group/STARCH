@@ -688,10 +688,10 @@ class STARCH:
 		model.means_ = self.means
 		model.covars_ = self.sigmas
 		model.fit(X,lengths)
-		logger.info(str(model.means_))
-		logger.info(str(model.covars_))
-		logger.info(str(model.transmat_))
-		logger.info(str(model.startprob_))
+		logger.info("fitted HMM means: " + str(model.means_))
+		logger.info("fitted HMM covariance matrices: " + str(model.covars_))
+		logger.info("fitted HMM transition matrix: " + str(model.transmat_))
+		logger.info("fitted HMM starting probability: " + str(model.startprob_))
 		self.model = model
 		for i in range(maxiters):
 			score_state = self.HMM_estimate_states_parallel(t=t,deltoamp=deltoamp,nthreads=nthreads)
