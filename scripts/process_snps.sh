@@ -53,4 +53,5 @@ done
 
 
 # run my pythonn to get a cell-by-gene matrix of SNP-covering UMI counts
-python get_snp_matrix.py ${OUTDIR} ${SAMPLE_ID} ${HGTABLE_FILE} ${CELLRANGER_OUT}/filtered_feature_bc_matrix/ 
+SCRIPTDIR=$(dirname "$0")
+python ${SCRIPTDIR}/get_snp_matrix.py ${OUTDIR} ${SAMPLE_ID} ${HGTABLE_FILE} ${CELLRANGER_OUT}/filtered_feature_bc_matrix/ 
