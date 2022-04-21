@@ -31,6 +31,7 @@ mkdir -p ${OUTDIR}
 gunzip -c ${CELLRANGER_OUT}/filtered_feature_bc_matrix/barcodes.tsv.gz > ${OUTDIR}/barcodes.txt
 
 # run cellsnp-lite
+mkdir -p ${OUTDIR}/pileup/${SAMPLE_ID}
 cellsnp-lite -s ${BAMFILE} \
              -b ${OUTDIR}/barcodes.txt \
              -O ${OUTDIR}/pileup/${SAMPLE_ID} \
@@ -40,8 +41,9 @@ cellsnp-lite -s ${BAMFILE} \
 
 # run phasing
 mkdir -p ${OUTDIR}/phasing/
+SCRIPTDIR=$(dirname "$0")
+python ${SCRIPTDIR}/filter_snps_forphasing.py ${SAMPLE_ID} ${OUTDIR}
 for chr in {1..22}; do
-    awk -v chrname=${chr} '{if($1==chrname) print "chr"$0}' ${OUTDIR}/pileup/${SAMPLE_ID}/cellSNP.base.vcf | sort -k2 -n | awk -v sample=${SAMPLE_ID} 'BEGIN{print "##fileformat=VCFv4.2"; print "##FORMAT=<ID=GT,Number=1,Type=String,Description=\"Consensus Genotype across all datasets with called genotype\">"; print "#CHROM\tPOS\tID\tREF\tALT\tQUAL\tFILTER\tINFO\tFORMAT\t"sample; FS="=|;";} {if ($2==$4) print $0"\tGT\t1/1"; else print $0"\tGT\t0/1"}' >| ${OUTDIR}/phasing/${SAMPLE_ID}_chr${chr}.vcf
     bgzip -f ${OUTDIR}/phasing/${SAMPLE_ID}_chr${chr}.vcf
     tabix ${OUTDIR}/phasing/${SAMPLE_ID}_chr${chr}.vcf.gz
     eagle --numThreads ${NTHREADS} \
