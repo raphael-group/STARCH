@@ -114,9 +114,8 @@ if __name__ == "__main__":
     hg_table_file = sys.argv[3]
     cellranger_filtered_dir = sys.argv[4]
     
-    if not Path(f"{numbatdir}/{sample_id}_myallele_counts.tsv.gz").exists():
-        outputfile = f"{numbatdir}/{sample_id}_myallele_counts.tsv.gz"
-        _ = process_snp_phasing(f"{numbatdir}/pileup/{sample_id}/", f"{numbatdir}/phasing/", outputfile)
+    outputfile = f"{numbatdir}/{sample_id}_myallele_counts.tsv.gz"
+    _ = process_snp_phasing(f"{numbatdir}/pileup/{sample_id}/", f"{numbatdir}/phasing/", outputfile)
     
     df_cell_snp = read_cell_by_snp(f"{numbatdir}/{sample_id}_myallele_counts.tsv.gz")
     print("sum DP = {}".format(np.sum(df_cell_snp.DP)))
