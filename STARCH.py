@@ -101,6 +101,7 @@ class STARCH:
 		self.gene_mapping_file_name = gene_mapping_file_name
 		self.n_clusters = int(n_clusters)
 		dat,data = self.preload(data)
+		dat,data = self.filter_spots(dat,data)
 		logger.info(str(self.rows[0:20]))
 		logger.info(str(len(self.rows)) + ' ' + str(len(self.columns)) + ' ' + str(data.shape))
 		if isinstance(normal_spots, str):
@@ -295,7 +296,15 @@ class STARCH:
 		self.columns = dat.columns.values
 		return(dat,data)
 
-
+	def filter_spots(self, dat, data, min_umi_perspot=10):
+		tmpdata, inds = self.filter_genes(data,min_cells=int(data.shape[1]/20))
+		idx_spots = np.where(np.sum(tmpdata, axis=0) > min_umi_perspot)[0]
+		data = data[:, idx_spots]
+		dat = dat.iloc[:, idx_spots]
+		self.rows = dat.index.values
+		self.columns = dat.columns.values
+		logger.info('Filtered spots, now have ' + str(data.shape[1]) + ' spots')
+		return dat, data
 
 	def preprocess_data(self,data,dat):
 		logger.info('data shape ' + str(data.shape))
@@ -329,8 +338,8 @@ class STARCH:
 		return(dat)
 
 	def read_normal_spots(self,normal_spots):
-		normal_spots = pd.read_csv(data,sep=',')
-		self.normal_spots = np.asarray([int(x) or x in np.asarray(normal_spots)])
+		normal_spots = pd.read_csv(normal_spots,sep=',')
+		self.normal_spots = np.asarray([int(x) for x in np.asarray(normal_spots)])
 
 	def get_normal_spots(self,data):
 		data,k = self.filter_genes(data,min_cells=int(data.shape[1]/20)) # 1
