@@ -36,11 +36,11 @@ os.environ['NUMEXPR_MAX_THREADS'] = '50'
 def jointLikelihoodEnergyLabels_helper(label,data,states,norms):
 	e = 1e-50
 	r0 = [x for x in range(data.shape[0]) if states[x,label]==0]
-	l0 = np.sum(-np.log(np.asarray(norms[0].pdf(data[r0,:])+e)),axis=0) 
+	l0 = np.sum(-np.log(np.asarray(norms[0].pdf(data[r0,:])+e)),axis=0)
 	r1 = [x for x in range(data.shape[0]) if states[x,label]==1]
-	l1 = np.sum(-np.log(np.asarray(norms[1].pdf(data[r1,:])+e)),axis=0) 
+	l1 = np.sum(-np.log(np.asarray(norms[1].pdf(data[r1,:])+e)),axis=0)
 	r2 = [x for x in range(data.shape[0]) if states[x,label]==2]
-	l2 = np.sum(-np.log(np.asarray(norms[2].pdf(data[r2,:])+e)),axis=0) 
+	l2 = np.sum(-np.log(np.asarray(norms[2].pdf(data[r2,:])+e)),axis=0)
 	return l0 + l1 + l2
 
 def init_helper(i,data, n_clusters,normal,diff,labels,c):
@@ -86,8 +86,8 @@ class STARCH:
 		The constructor for HMFR_CNA
 
 		Parameters:
-			data (pandas data frame): gene x spot (or cell). 
-				colnames = 2d or 3d indices (eg. 5x18, 5x18x2 if multiple layers). 
+			data (pandas data frame): gene x spot (or cell).
+				colnames = 2d or 3d indices (eg. 5x18, 5x18x2 if multiple layers).
 				rownames = HUGO gene name
 		"""
 		assert( platform == "ST" or platform == "Visium" )
@@ -170,7 +170,7 @@ class STARCH:
 	def get_bin_size(self,data,chroms):
 		for bin_size in range(20,100):
 			test =  self.bin_data2(data[:,self.normal_spots],chroms,bin_size=bin_size,step_size=1)
-			test = test[test!=0] 
+			test = test[test!=0]
 			logger.debug(str(bin_size)+' mean expression binned ' + str(np.mean(test)))
 			logger.debug(str(bin_size)+' median expression binned ' + str(np.median(test)))
 			if np.median(test) >= 10:
@@ -281,7 +281,7 @@ class STARCH:
 				genes,inds2 = np.unique(genes, return_index=True)
 				matrix = matrix[inds2,:]
 				dat = pd.DataFrame(matrix,index = genes,columns = coords2)
-				
+
 				logger.info(str(dat))
 			else:
 				dat = pd.DataFrame(data)
@@ -315,11 +315,11 @@ class STARCH:
 
 		bin_size = self.get_bin_size(data,chroms)
 
-		data = np.log(data+1) 
+		data = np.log(data+1)
 		data = self.library_size_normalize(data) #2
 		data = data-np.mean(data[:,self.normal_spots],axis=1).reshape(data.shape[0],1)
 		data = self.threshold_data(data,max_value=3.0)
-		data =  self.bin_data(data,chroms,bin_size=bin_size,step_size=1) 
+		data =  self.bin_data(data,chroms,bin_size=bin_size,step_size=1)
 		data = self.center_at_zero(data) #7
 		data = data-np.mean(data[:,self.normal_spots],axis=1).reshape(data.shape[0],1)
 		data = np.exp(data)-1
@@ -335,7 +335,7 @@ class STARCH:
 	def get_normal_spots(self,data):
 		data,k = self.filter_genes(data,min_cells=int(data.shape[1]/20)) # 1
 		data = self.library_size_normalize(data) #2
-		data = np.log(data+1) 
+		data = np.log(data+1)
 		data = self.threshold_data(data,max_value=3.0)
 		pca = PCA(n_components=1).fit_transform(data.T)
 		km = KMeans(n_clusters=2).fit(pca)
@@ -495,8 +495,8 @@ class STARCH:
 		logger.info(str(means))
 		self.means = np.asarray(means)
 		self.sigmas = np.asarray(sigmas)
-        self.model.means_ = means
-        self.model.covars_ = self.sigmas
+		self.model.means_ = means
+		self.model.covars_ = self.sigmas
 
 	def initialize_labels(self):
 		dat=self.data
@@ -504,7 +504,7 @@ class STARCH:
 		km = KMeans(n_clusters=self.n_clusters).fit(dat.T)
 		clusters = np.asarray(km.predict(dat.T))
 		self.labels = clusters
-		
+
 	def get_spot_network(self,data,spots,l=1):
 		spots = np.asarray([[float(y) for y in x.split('x')] for x in spots])
 		if self.platform == "Visium":
