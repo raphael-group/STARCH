@@ -495,6 +495,8 @@ class STARCH:
 		logger.info(str(means))
 		self.means = np.asarray(means)
 		self.sigmas = np.asarray(sigmas)
+        self.model.means_ = means
+        self.model.covars_ = self.sigmas
 
 	def initialize_labels(self):
 		dat=self.data
