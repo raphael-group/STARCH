@@ -22,7 +22,7 @@ if __name__ == "__main__":
 	parser.add_argument('-p','--platform',required=False,type=str,choices=["ST", "Visium"],default='ST',help='platform for spatial transcriptomcis data')
 	args = parser.parse_args()
 
-	nthreads = args.threads
+	nthreads = int(args.threads)
 	beta_spot = args.beta_spot
 	n_clusters = args.n_clusters
 	returnnormal = args.returnnormal
